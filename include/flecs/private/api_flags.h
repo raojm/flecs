@@ -42,6 +42,8 @@ extern "C" {
 #define EcsEntityObservedId           (1u << 30)
 #define EcsEntityObservedTarget       (1u << 29)
 #define EcsEntityObservedAcyclic      (1u << 28)
+//跟据是否MassEntityUniqueID组件来设置Enity是否开启ChangedBitSet标识
+#define ECSEntityHasChangedBitSet     (1u << 27)
 
 
 ////////////////////////////////////////////////////////////////////////////////
