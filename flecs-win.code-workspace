@@ -1,0 +1,33 @@
+{
+	"folders": [
+		{
+			"path": ".",
+		},
+	],
+	"settings": {
+		"cmake.configureSettings": {
+			"VCPKG_TARGET_TRIPLET": "x64-windows-static",
+			"CMAKE_TOOLCHAIN_FILE": "D:/develop/vcpkg/scripts/buildsystems/vcpkg.cmake"
+		},
+		"cmake.debugConfig": { 
+			"cwd": "${workspaceFolder}",
+			"console" : "integratedTerminal",
+		},
+		"cmake.sourceDirectory": "examples/c",
+
+		"C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+
+		"git.detectSubmodules": false,
+		"git.postCommitCommand": "sync",
+		"git.autofetch": true,
+
+		"files.exclude": {
+			"flecs.h": true,
+			"flecs.c": true,
+			"test": true,
+		},
+
+		"files.associations": {
+		},
+	}
+}

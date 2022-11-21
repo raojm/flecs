@@ -110,6 +110,7 @@ struct ecs_data_t {
     ecs_vec_t *columns;       /* Component columns */
     ecs_switch_t *sw_columns;    /* Switch columns */
     ecs_bitset_t *bs_columns;    /* Bitset columns */
+    ecs_bitset_t *changed_bs_columns;    /* Changed Bitset columns */
 };
 
 /** Cache of added/removed components for non-trivial edges between tables */
@@ -192,6 +193,8 @@ struct ecs_table_t {
     int16_t sw_offset;
     int16_t bs_count;
     int16_t bs_offset;
+    int16_t changed_bs_count;
+    int16_t changed_bs_offset;
 
     int32_t refcount;                /* Increased when used as storage table */
     int32_t lock;                    /* Prevents modifications */

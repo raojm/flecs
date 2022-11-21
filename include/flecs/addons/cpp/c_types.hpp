@@ -42,6 +42,8 @@ enum oper_kind_t {
 static const flecs::entity_t Pair = ECS_PAIR;
 static const flecs::entity_t Override = ECS_OVERRIDE;
 static const flecs::entity_t Toggle = ECS_TOGGLE;
+static const flecs::entity_t Toggle_CHANGED_BITSET = ECS_TOGGLE_CHANGED_BITSET;
+static const flecs::entity_t Toggle_NOSYNC = ECS_TOGGLE_NOSYNC;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Builtin components and tags 

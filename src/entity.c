@@ -3973,6 +3973,12 @@ const char* ecs_id_flag_str(
     } else
     if (ECS_HAS_ID_FLAG(entity, TOGGLE)) {
         return "TOGGLE";
+    } 
+    else if (ECS_HAS_ID_FLAG(entity, TOGGLE_CHANGED_BITSET)) {
+        return "TOGGLE_CHANGED_BITSET";
+    } 
+    else if (ECS_HAS_ID_FLAG(entity, TOGGLE_NOSYNC)) {
+        return "TOGGLE_NOSYNC";
     } else
     if (ECS_HAS_ID_FLAG(entity, AND)) {
         return "AND";
@@ -3995,6 +4001,16 @@ void ecs_id_str_buf(
 
     if (ECS_HAS_ID_FLAG(id, TOGGLE)) {
         ecs_strbuf_appendstr(buf, ecs_id_flag_str(ECS_TOGGLE));
+        ecs_strbuf_appendch(buf, '|');
+    }
+
+    if (ECS_HAS_ID_FLAG(id, TOGGLE_CHANGED_BITSET)) {
+        ecs_strbuf_appendstr(buf, ecs_id_flag_str(ECS_TOGGLE_CHANGED_BITSET));
+        ecs_strbuf_appendch(buf, '|');
+    }
+
+    if (ECS_HAS_ID_FLAG(id, TOGGLE_NOSYNC)) {
+        ecs_strbuf_appendstr(buf, ecs_id_flag_str(ECS_TOGGLE_NOSYNC));
         ecs_strbuf_appendch(buf, '|');
     }
 

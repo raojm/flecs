@@ -18,11 +18,14 @@ void flecs_table_check_sanity(ecs_table_t *table) {
     int32_t sw_count = table->sw_count;
     int32_t bs_offset = table->bs_offset;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_offset = table->changed_bs_offset;
+    int32_t changed_bs_count = table->changed_bs_count;
     int32_t type_count = table->type.count;
     ecs_id_t *ids = table->type.array;
 
     ecs_assert((sw_count + sw_offset) <= type_count, ECS_INTERNAL_ERROR, NULL);
     ecs_assert((bs_count + bs_offset) <= type_count, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert((changed_bs_count + bs_offset) <= type_count, ECS_INTERNAL_ERROR, NULL);
 
     ecs_table_t *storage_table = table->storage_table;
     if (storage_table) {
@@ -82,6 +85,18 @@ void flecs_table_check_sanity(ecs_table_t *table) {
             ecs_assert(flecs_bitset_count(bs) == count,
                 ECS_INTERNAL_ERROR, NULL);
             ecs_assert(ECS_HAS_ID_FLAG(ids[i + bs_offset], TOGGLE),
+                ECS_INTERNAL_ERROR, NULL);
+        }
+    }
+
+    if (changed_bs_count) {
+        ecs_assert(table->data.changed_bs_columns != NULL, 
+            ECS_INTERNAL_ERROR, NULL);
+        for (i = 0; i < changed_bs_count; i ++) {
+            ecs_bitset_t *changed_bs = &table->data.changed_bs_columns[i];
+            ecs_assert(flecs_bitset_count(changed_bs) == count,
+                ECS_INTERNAL_ERROR, NULL);
+            ecs_assert(ECS_HAS_ID_FLAG(ids[i + changed_bs_offset], TOGGLE_CHANGED_BITSET),
                 ECS_INTERNAL_ERROR, NULL);
         }
     }
@@ -259,12 +274,13 @@ void flecs_table_init_data(
 {
     int32_t sw_count = table->sw_count;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_count = table->bs_count;
 
     ecs_data_t *storage = &table->data;
     int32_t i, count = table->storage_count;
 
     /* Root tables don't have columns */
-    if (!count && !sw_count && !bs_count) {
+    if (!count && !sw_count && !bs_count && !changed_bs_count) {
         storage->columns = NULL;
     }
 
@@ -294,6 +310,13 @@ void flecs_table_init_data(
         storage->bs_columns = flecs_wcalloc_n(world, ecs_bitset_t, bs_count);
         for (i = 0; i < bs_count; i ++) {
             flecs_bitset_init(&storage->bs_columns[i]);
+        }
+    }
+
+    if (changed_bs_count) {
+        storage->changed_bs_columns = flecs_wcalloc_n(world, ecs_bitset_t, changed_bs_count);
+        for (i = 0; i < changed_bs_count; i ++) {
+            flecs_bitset_init(&storage->changed_bs_columns[i]);
         }
     }
 }
@@ -365,6 +388,14 @@ void flecs_table_init_flags(
                         table->bs_offset = flecs_ito(int16_t, i);
                     }
                     table->bs_count ++;
+                }
+                if (ECS_HAS_ID_FLAG(id, TOGGLE_CHANGED_BITSET)) {
+                    table->flags |= EcsTableHasToggleChangedBitset;
+
+                    if (!table->changed_bs_count) {
+                        table->changed_bs_offset = flecs_ito(int16_t, i);
+                    }
+                    table->changed_bs_count ++;
                 }
                 if (ECS_HAS_ID_FLAG(id, OVERRIDE)) {
                     table->flags |= EcsTableHasOverrides;
@@ -977,6 +1008,16 @@ void flecs_table_fini_data(
         data->bs_columns = NULL;
     }
 
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
+    if (changed_bs_columns) {
+        int32_t c, column_count = table->changed_bs_count;
+        for (c = 0; c < column_count; c ++) {
+            flecs_bitset_fini(&changed_bs_columns[c]);
+        }
+        flecs_wfree_n(world, ecs_bitset_t, column_count, changed_bs_columns);
+        data->changed_bs_columns = NULL;
+    }
+
     ecs_vec_fini_t(&world->allocator, &data->entities, ecs_entity_t);
     ecs_vec_fini_t(&world->allocator, &data->records, ecs_record_t*);
 
@@ -1324,6 +1365,75 @@ void flecs_table_move_bitset_columns(
 }
 
 static
+void flecs_table_move_changed_bitset_columns(
+    ecs_table_t *dst_table, 
+    int32_t dst_index,
+    ecs_table_t *src_table, 
+    int32_t src_index,
+    int32_t count,
+    bool clear)
+{
+    int32_t i_old = 0, src_column_count = src_table->changed_bs_count;
+    int32_t i_new = 0, dst_column_count = dst_table->changed_bs_count;
+
+    if (!src_column_count && !dst_column_count) {
+        return;
+    }
+
+    ecs_bitset_t *src_columns = src_table->data.changed_bs_columns;
+    ecs_bitset_t *dst_columns = dst_table->data.changed_bs_columns;
+
+    ecs_type_t dst_type = dst_table->type;
+    ecs_type_t src_type = src_table->type;
+
+    int32_t offset_new = dst_table->changed_bs_offset;
+    int32_t offset_old = src_table->changed_bs_offset;
+
+    ecs_id_t *dst_ids = dst_type.array;
+    ecs_id_t *src_ids = src_type.array;
+
+    for (; (i_new < dst_column_count) && (i_old < src_column_count);) {
+        ecs_id_t dst_id = dst_ids[i_new + offset_new];
+        ecs_id_t src_id = src_ids[i_old + offset_old];
+
+        if (dst_id == src_id) {
+            ecs_bitset_t *src_bs = &src_columns[i_old];
+            ecs_bitset_t *dst_bs = &dst_columns[i_new];
+
+            flecs_bitset_ensure(dst_bs, dst_index + count);
+
+            int i;
+            for (i = 0; i < count; i ++) {
+                uint64_t value = flecs_bitset_get(src_bs, src_index + i);
+                flecs_bitset_set(dst_bs, dst_index + i, value);
+            }
+
+            if (clear) {
+                ecs_assert(count == flecs_bitset_count(src_bs), 
+                    ECS_INTERNAL_ERROR, NULL);
+                flecs_bitset_fini(src_bs);
+            }
+        } else if (dst_id > src_id) {
+            ecs_bitset_t *src_bs = &src_columns[i_old];
+            flecs_bitset_fini(src_bs);
+        }
+
+        i_new += dst_id <= src_id;
+        i_old += dst_id >= src_id;
+    }
+
+    /* Clear remaining columns */
+    if (clear) {
+        for (; (i_old < src_column_count); i_old ++) {
+            ecs_bitset_t *src_bs = &src_columns[i_old];
+            ecs_assert(count == flecs_bitset_count(src_bs), 
+                ECS_INTERNAL_ERROR, NULL);
+            flecs_bitset_fini(src_bs);
+        }
+    }
+}
+
+static
 void* flecs_table_grow_column(
     ecs_world_t *world,
     ecs_vec_t *column,
@@ -1410,9 +1520,11 @@ int32_t flecs_table_grow_data(
     int32_t column_count = table->storage_count;
     int32_t sw_count = table->sw_count;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_count = table->changed_bs_count;
     ecs_vec_t *columns = data->columns;
     ecs_switch_t *sw_columns = data->sw_columns;
     ecs_bitset_t *bs_columns = data->bs_columns; 
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
 
     /* Add record to record ptr array */
     ecs_vec_set_size_t(&world->allocator, &data->records, ecs_record_t*, size);
@@ -1458,6 +1570,12 @@ int32_t flecs_table_grow_data(
     for (i = 0; i < bs_count; i ++) {
         ecs_bitset_t *bs = &bs_columns[i];
         flecs_bitset_addn(bs, to_add);
+    }
+
+    /* Add elements to each changed bitset column */
+    for (i = 0; i < changed_bs_count; i ++) {
+        ecs_bitset_t *changed_bs = &changed_bs_columns[i];
+        flecs_bitset_addn(changed_bs, to_add);
     }
 
     /* If the table is monitored indicate that there has been a change */
@@ -1536,8 +1654,10 @@ int32_t flecs_table_append(
 
     int32_t sw_count = table->sw_count;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_count = table->changed_bs_count;
     ecs_switch_t *sw_columns = data->sw_columns;
     ecs_bitset_t *bs_columns = data->bs_columns;
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
     ecs_entity_t *entities = data->entities.array;
 
     /* Reobtain size to ensure that the columns have the same size as the 
@@ -1577,6 +1697,13 @@ int32_t flecs_table_append(
         ecs_bitset_t *bs = &bs_columns[i];
         flecs_bitset_addn(bs, 1);
     }    
+
+    /* Add element to each changed bitset column */
+    for (i = 0; i < changed_bs_count; i ++) {
+        ecs_assert(changed_bs_columns != NULL, ECS_INTERNAL_ERROR, NULL);
+        ecs_bitset_t *changed_bs = &changed_bs_columns[i];
+        flecs_bitset_addn(changed_bs, 1);
+    }   
 
     /* If this is the first entity in this table, signal queries so that the
      * table moves from an inactive table to an active table. */
@@ -1745,6 +1872,13 @@ void flecs_table_delete(
         flecs_bitset_remove(&bs_columns[i], index);
     }
 
+    /* Remove elements from changed bitset columns */
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
+    int32_t changed_bs_count = table->changed_bs_count;
+    for (i = 0; i < changed_bs_count; i ++) {
+        flecs_bitset_remove(&changed_bs_columns[i], index);
+    }
+
     flecs_table_check_sanity(table);
 }
 
@@ -1814,6 +1948,7 @@ void flecs_table_move(
 
     flecs_table_move_switch_columns(dst_table, dst_index, src_table, src_index, 1, false);
     flecs_table_move_bitset_columns(dst_table, dst_index, src_table, src_index, 1, false);
+    flecs_table_move_changed_bitset_columns(dst_table, dst_index, src_table, src_index, 1, false);
 
     /* If the source and destination entities are the same, move component 
      * between tables. If the entities are not the same (like when cloning) use
@@ -2014,6 +2149,26 @@ void flecs_table_swap_bitset_columns(
     }
 }
 
+static
+void flecs_table_swap_changed_bitset_columns(
+    ecs_table_t *table,
+    ecs_data_t *data,
+    int32_t row_1,
+    int32_t row_2)
+{
+    int32_t i = 0, column_count = table->changed_bs_count;
+    if (!column_count) {
+        return;
+    }
+
+    ecs_bitset_t *columns = data->changed_bs_columns;
+
+    for (i = 0; i < column_count; i ++) {
+        ecs_bitset_t *bs = &columns[i];
+        flecs_bitset_swap(bs, row_1, row_2);
+    }
+}
+
 void flecs_table_swap(
     ecs_world_t *world,
     ecs_table_t *table,
@@ -2060,6 +2215,7 @@ void flecs_table_swap(
 
     flecs_table_swap_switch_columns(table, &table->data, row_1, row_2);
     flecs_table_swap_bitset_columns(table, &table->data, row_1, row_2);  
+    flecs_table_swap_changed_bitset_columns(table, &table->data, row_1, row_2);  
 
     ecs_vec_t *columns = table->data.columns;
     if (!columns) {
@@ -2213,6 +2369,7 @@ void flecs_merge_table_data(
 
     flecs_table_move_switch_columns(dst_table, dst_count, src_table, 0, src_count, true);
     flecs_table_move_bitset_columns(dst_table, dst_count, src_table, 0, src_count, true);
+    flecs_table_move_changed_bitset_columns(dst_table, dst_count, src_table, 0, src_count, true);
 
     /* Initialize remaining columns */
     for (; i_new < dst_column_count; i_new ++) {

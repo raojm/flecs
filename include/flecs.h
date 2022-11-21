@@ -1010,6 +1010,9 @@ FLECS_API extern const ecs_id_t ECS_TOGGLE;
 /** Include all components from entity to which AND is applied */
 FLECS_API extern const ecs_id_t ECS_AND;
 
+/** Adds bitset to storage which allows component to be enable record changed status/disable record changed status*/
+FLECS_API extern const ecs_id_t ECS_TOGGLE_CHANGED_BITSET;
+
 /** Adds bitset to storage which allows component to be enable nosync/disable nosync*/
 FLECS_API extern const ecs_id_t ECS_TOGGLE_NOSYNC;
 

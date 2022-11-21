@@ -5,7 +5,9 @@ const ecs_id_t ECS_PAIR =                                          (1ull << 63);
 const ecs_id_t ECS_OVERRIDE =                                      (1ull << 62);
 const ecs_id_t ECS_TOGGLE =                                        (1ull << 61);
 const ecs_id_t ECS_AND =                                           (1ull << 60);
-const ecs_id_t ECS_TOGGLE_NOSYNC =                                 (1ull << 59);
+//处定义添加的两个开关标识
+const ecs_id_t ECS_TOGGLE_CHANGED_BITSET =                         (1ull << 59);
+const ecs_id_t ECS_TOGGLE_NOSYNC =                                 (1ull << 58);
 
 /** Builtin component ids */
 const ecs_entity_t ecs_id(EcsComponent) =                           1;
