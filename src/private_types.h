@@ -423,7 +423,10 @@ typedef enum ecs_cmd_kind_t {
     EcsOpOnDeleteAction,
     EcsOpEnable,
     EcsOpDisable,
-    EcsOpSkip
+    EcsOpSkip,
+    //用来批量修改Component changed状态
+    EcsOpChanged,
+    EcsOpNotChanged,
 } ecs_cmd_kind_t;
 
 typedef struct ecs_cmd_1_t {

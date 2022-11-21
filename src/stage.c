@@ -261,6 +261,25 @@ bool flecs_defer_enable(
     return false;
 }
 
+bool flecs_defer_changed(
+    ecs_world_t *world,
+    ecs_stage_t *stage,
+    ecs_entity_t entity,
+    ecs_id_t id,
+    bool changed)
+{
+    if (flecs_defer_cmd(world, stage)) {
+        ecs_cmd_t *cmd = flecs_cmd_new(stage, entity, false, false);
+        if (cmd) {
+            cmd->kind = changed ? EcsOpChanged : EcsOpNotChanged;
+            cmd->entity = entity;
+            cmd->id = id;
+        }
+        return true;
+    }
+    return false;
+}
+
 bool flecs_defer_bulk_new(
     ecs_world_t *world,
     ecs_stage_t *stage,

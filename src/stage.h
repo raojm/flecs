@@ -72,6 +72,13 @@ bool flecs_defer_enable(
     ecs_entity_t component,
     bool enable);    
 
+bool flecs_defer_changed(
+    ecs_world_t *world,
+    ecs_stage_t *stage,
+    ecs_entity_t entity,
+    ecs_entity_t component,
+    bool changed);   
+
 bool flecs_defer_add(
     ecs_world_t *world,
     ecs_stage_t *stage,
