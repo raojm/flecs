@@ -165,7 +165,7 @@ typedef int32_t ecs_size_t;
 //// Entity id macros
 ////////////////////////////////////////////////////////////////////////////////
 
-#define ECS_ROW_MASK                  (0x0FFFFFFFu)
+#define ECS_ROW_MASK                  (0x07FFFFFFu)
 #define ECS_ROW_FLAGS_MASK            (~ECS_ROW_MASK)
 #define ECS_RECORD_TO_ROW(v)          (ECS_CAST(int32_t, (ECS_CAST(uint32_t, v) & ECS_ROW_MASK)))
 #define ECS_RECORD_TO_ROW_FLAGS(v)    (ECS_CAST(uint32_t, v) & ECS_ROW_FLAGS_MASK)
