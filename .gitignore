@@ -16,3 +16,4 @@ bazel-testlogs
 **/CMakeFiles/*
 buildtemp/
 examples/c/build/
+buildtemp/

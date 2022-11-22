@@ -5,10 +5,11 @@
 		},
 	],
 	"settings": {
-		"cmake.configureSettings": {
-			"VCPKG_TARGET_TRIPLET": "x64-windows-static",
-			"CMAKE_TOOLCHAIN_FILE": "D:/develop/vcpkg/scripts/buildsystems/vcpkg.cmake"
-		},
+		// "cmake.configureSettings": {
+		// 	"VCPKG_TARGET_TRIPLET": "x64-windows-static",
+		// 	"CMAKE_TOOLCHAIN_FILE": "D:/develop/vcpkg/scripts/buildsystems/vcpkg.cmake"
+		// },
+        "cmake.buildDirectory": "${workspaceFolder}/buildtemp",
 		"cmake.debugConfig": { 
 			"cwd": "${workspaceFolder}",
 			"console" : "integratedTerminal",
