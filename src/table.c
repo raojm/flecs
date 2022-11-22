@@ -274,7 +274,7 @@ void flecs_table_init_data(
 {
     int32_t sw_count = table->sw_count;
     int32_t bs_count = table->bs_count;
-    int32_t changed_bs_count = table->bs_count;
+    int32_t changed_bs_count = table->changed_bs_count;
 
     ecs_data_t *storage = &table->data;
     int32_t i, count = table->storage_count;
