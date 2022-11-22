@@ -29,6 +29,10 @@
 		},
 
 		"files.associations": {
-		},
+            "*.das_module": "dascript",
+            "*.das_project": "dascript",
+            "*.idl": "idl",
+            "typeinfo": "c"
+        },
 	}
 }

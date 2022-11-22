@@ -1,0 +1,12 @@
+{
+    "id": "pair",
+    "type": "application",
+    "value": {
+        "author": "raojm",
+        "description": "A simple hello world flecs application",
+        "use": [
+            "flecs"
+        ],
+        "public": false
+    }
+}
