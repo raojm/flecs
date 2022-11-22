@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
         
         // Inner loop, iterates entities in archetype
         for (int i = 0; i < it.count; i ++) {
+            printf("%s: {%f, %f}\n", ecs_get_name(ecs, it.entities[i]),p[i].x, p[i].y);
             p_out[i].x = p[i].x;
             p_out[i].y = p[i].y;
             if (p_parent) {

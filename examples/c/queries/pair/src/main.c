@@ -69,19 +69,8 @@ int main(int argc, char *argv[]) {
     ecs_query_t *pstQuery = ecs_query(g_pstFLECSWorld, {
         .filter.terms = {
             // Read from entity's Local position
-            { .id = ecs_pair(EcsChildOf, GameRoom0001) }, 
-            // // Write to entity's World position
-            // { .id = ecs_pair(ecs_id(Position), World), .inout = EcsOut },
-
-            // // Read from parent's World position
-            // {
-            //     .id = ecs_pair(ecs_id(Position), World), 
-            //     .inout = EcsIn,
-            //     // Get from the parent, in breadth-first order (cascade)
-            //     .src.flags = EcsParent | EcsCascade,
-            //     // Make parent term optional so we also match the root (sun)
-            //     .oper = EcsOptional
-            // }
+            { .id = GameRoomTag, .src.flags = EcsParent }, 
+            // { .id = ecs_pair(EcsChildOf, GameRoom0001)},
         }
     });
 
