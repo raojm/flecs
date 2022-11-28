@@ -33,7 +33,8 @@
             "*.das_project": "dascript",
             "*.idl": "idl",
             "typeinfo": "c",
-            "__locale": "c"
+            "__locale": "c",
+            "__mutex_base": "c"
         },
 	}
 }

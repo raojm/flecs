@@ -3218,6 +3218,8 @@ void flecs_move_ptr_w_id(
 
     flecs_table_mark_dirty(world, r->table, id);
 
+    ecs_set_id_changed(world, entity, id, true);
+
     if (cmd_kind == EcsOpSet) {
         ecs_table_t *table = r->table;
         if (table->flags & EcsTableHasOnSet || ti->hooks.on_set) {
