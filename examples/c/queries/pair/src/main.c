@@ -1,6 +1,8 @@
 #include <pair.h>
 #include <stdio.h>
 
+ecs_world_t *g_pstFLECSWorld = NULL;
+
 typedef struct {
     double x;
     double y;
@@ -14,16 +16,46 @@ ECS_STRUCT(TableUniqueID, {
     uint16_t ID;
 });
 
-int main(int argc, char *argv[]) {
-    ecs_world_t *g_pstFLECSWorld = ecs_init_w_args(argc, argv);
+void Trigger(ecs_iter_t *it) {
+    // probe_system_w_ctx(it, it->ctx);
 
-     ECS_META_COMPONENT(g_pstFLECSWorld, RoomUniqueID);
+    ecs_id_t field1 = ecs_field_id(it, 1);
+    ecs_id_t field2 = ecs_field_id(it, 2);
+
+
+    printf("Trigger field1 id: %llu \n", field1);
+    printf("Trigger field2 id: %llu \n", field2);
+
+    for (int i = 0; i < it->count; i ++) {
+        printf("entity id: %llu,  name: %s\n", it->entities[i], ecs_get_name(g_pstFLECSWorld, it->entities[i]));
+
+        
+    }
+}
+
+int main(int argc, char *argv[]) {
+    g_pstFLECSWorld = ecs_init_w_args(argc, argv);
+
+    
+
+    ECS_META_COMPONENT(g_pstFLECSWorld, RoomUniqueID);
     ECS_META_COMPONENT(g_pstFLECSWorld, TableUniqueID);
 
     ECS_TAG(g_pstFLECSWorld, GameRoomTag);
     ECS_TAG(g_pstFLECSWorld, GameTableTag);
 
+    ECS_TAG(g_pstFLECSWorld, MyTestTag1);
+    ECS_TAG(g_pstFLECSWorld, MyTestTag2);
+
     // ecs_add(g_pstFLECSWorld, EcsWorld, RoomUniqueID);
+
+    ecs_entity_t t_any = ecs_observer_init(g_pstFLECSWorld, &(ecs_observer_desc_t){
+        .filter.terms[0].id = MyTestTag1,
+        .filter.terms[1].id = EcsWildcard,
+        .events = {EcsOnSet},
+        .callback = Trigger,
+        // .ctx = ctx_any
+    });
 
 
     RoomUniqueID stRoomUniqueID0001 = {.ID=0x0001};
@@ -38,7 +70,9 @@ int main(int argc, char *argv[]) {
     TableUniqueID stTableUniqueID0006 = {.ID=0x0006};
 
     // ecs_new_entity(ecs, "Sun");
-    ecs_entity_t GameRoom0001 = ecs_entity_init(g_pstFLECSWorld, &(ecs_entity_desc_t){ .name = "GameRoom0001", .add = { GameRoomTag } });
+    ecs_entity_t GameRoom0001 = ecs_entity_init(g_pstFLECSWorld, &(ecs_entity_desc_t){ .name = "GameRoom0001", .add = { GameRoomTag,  MyTestTag1} });
+    // ecs_set_id(g_pstFLECSWorld, GameRoom0001, MyTestTag2, 0, NULL);
+    ecs_add_id(g_pstFLECSWorld, GameRoom0001, MyTestTag2);
     ecs_set_ptr(g_pstFLECSWorld, GameRoom0001, RoomUniqueID, &stRoomUniqueID0001);
     ecs_entity_t GameRoom0002 = ecs_entity_init(g_pstFLECSWorld, &(ecs_entity_desc_t){ .name = "GameRoom0002", .add = { GameRoomTag } });
     ecs_set_ptr(g_pstFLECSWorld, GameRoom0002, RoomUniqueID, &stRoomUniqueID0002);
@@ -97,6 +131,10 @@ int main(int argc, char *argv[]) {
         //     }
         // }
     }
+
+
+    ecs_progress(g_pstFLECSWorld, 0);
+    ecs_progress(g_pstFLECSWorld, 0);
 
     // Print ecs positions
     // it = ecs_term_iter(g_pstFLECSWorld, &(ecs_term_t) {
