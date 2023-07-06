@@ -1081,6 +1081,12 @@ FLECS_API extern const ecs_id_t ECS_AND;
 
 /** @} */
 
+/** Adds bitset to storage which allows component to be enable record changed status/disable record changed status*/
+FLECS_API extern const ecs_id_t ECS_TOGGLE_CHANGED_BITSET;
+
+/** Adds bitset to storage which allows component to be enable nosync/disable nosync*/
+FLECS_API extern const ecs_id_t ECS_TOGGLE_NOSYNC;
+
 /**
  * @defgroup builtin_tags Builtin component ids.
  * @{
@@ -2343,6 +2349,42 @@ bool ecs_is_enabled_id(
     const ecs_world_t *world,
     ecs_entity_t entity,
     ecs_id_t id);
+
+/** @} */
+
+
+/**
+ * @defgroup set component changed status for entity.
+ * @{
+ */
+
+/** set component changed status.
+ *
+ * @param world The world.
+ * @param entity The entity.
+ * @param id The component.
+ * @param changed True to the component changed, false to component no changed.
+ */
+FLECS_API 
+void ecs_set_id_changed(
+    ecs_world_t *world,
+    ecs_entity_t entity,
+    ecs_id_t id,
+    bool changed);
+
+/** Test if component is changed.
+ *
+ * @param world The world.
+ * @param entity The entity.
+ * @param id The component.
+ * @return True if the component is changed, otherwise false.
+ */
+FLECS_API 
+bool ecs_is_id_changed(
+    const ecs_world_t *world,
+    ecs_entity_t entity,
+    ecs_id_t id);
+
 
 /** @} */
 

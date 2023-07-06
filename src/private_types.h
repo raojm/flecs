@@ -109,6 +109,7 @@ struct ecs_data_t {
     ecs_vec_t *columns;          /* Component columns */
     ecs_switch_t *sw_columns;    /* Switch columns */
     ecs_bitset_t *bs_columns;    /* Bitset columns */
+    ecs_bitset_t *changed_bs_columns;    /* Changed Bitset columns */
 };
 
 /** Cache of added/removed components for non-trivial edges between tables */
@@ -188,6 +189,8 @@ struct ecs_table_t {
     int16_t bs_count;
     int16_t bs_offset;
     int16_t ft_offset;
+    int16_t changed_bs_count;
+    int16_t changed_bs_offset;
 
     uint16_t record_count;           /* Table record count including wildcards */
     int32_t refcount;                /* Increased when used as storage table */
@@ -447,7 +450,10 @@ typedef enum ecs_cmd_kind_t {
     EcsOpOnDeleteAction,
     EcsOpEnable,
     EcsOpDisable,
-    EcsOpSkip
+    EcsOpSkip,
+    //用来批量修改Component changed状态
+    EcsOpChanged,
+    EcsOpNotChanged,
 } ecs_cmd_kind_t;
 
 typedef struct ecs_cmd_1_t {

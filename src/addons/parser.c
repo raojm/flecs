@@ -41,6 +41,8 @@
 #define TOK_ROLE_OR "OR"
 #define TOK_ROLE_NOT "NOT"
 #define TOK_ROLE_TOGGLE "TOGGLE"
+#define TOK_ROLE_TOGGLE_CHANGED_BITSET "TOGGLE_CHANGED_BITSET"
+#define TOK_ROLE_TOGGLE_NOSYNC "TOGGLE_NOSYNC"
 
 #define TOK_IN "in"
 #define TOK_OUT "out"
@@ -307,7 +309,11 @@ ecs_entity_t flecs_parse_role(
     } else if (!ecs_os_strcmp(token, TOK_OVERRIDE)) {
         return ECS_OVERRIDE;
     } else if (!ecs_os_strcmp(token, TOK_ROLE_TOGGLE)) {
-        return ECS_TOGGLE;        
+        return ECS_TOGGLE;
+    } else if (!ecs_os_strcmp(token, TOK_ROLE_TOGGLE_CHANGED_BITSET)) {
+        return ECS_TOGGLE_CHANGED_BITSET;      
+    } else if (!ecs_os_strcmp(token, TOK_ROLE_TOGGLE_NOSYNC)) {
+        return ECS_TOGGLE_NOSYNC;        
     } else {
         ecs_parser_error(name, sig, column, "invalid role '%s'", token);
         return 0;

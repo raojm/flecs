@@ -42,6 +42,8 @@ extern "C" {
 #define EcsEntityIsId                 (1u << 31)
 #define EcsEntityIsTarget             (1u << 30)
 #define EcsEntityIsTraversable        (1u << 29)
+//跟据是否MassEntityUniqueID组件来设置Enity是否开启ChangedBitSet标识
+#define ECSEntityHasChangedBitSet     (1u << 28)
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,6 +153,9 @@ extern "C" {
 #define EcsTableHasOnSet               (1u << 17u)
 #define EcsTableHasUnSet               (1u << 18u)
 
+//用来标识table有ChangedBitset开关
+#define EcsTableHasToggleChangedBitset (1u << 19u)
+
 #define EcsTableHasObserved            (1u << 20u)
 #define EcsTableHasTarget              (1u << 21u)
 
@@ -158,7 +163,7 @@ extern "C" {
 
 /* Composite table flags */
 #define EcsTableHasLifecycle        (EcsTableHasCtors | EcsTableHasDtors)
-#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasToggle)
+#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasToggle | EcsTableHasToggleChangedBitset)
 #define EcsTableHasAddActions       (EcsTableHasIsA | EcsTableHasUnion | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
 #define EcsTableHasRemoveActions    (EcsTableHasIsA | EcsTableHasDtors | EcsTableHasOnRemove | EcsTableHasUnSet)
 
