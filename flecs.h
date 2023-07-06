@@ -244,6 +244,8 @@ extern "C" {
 #define EcsEntityIsId                 (1u << 31)
 #define EcsEntityIsTarget             (1u << 30)
 #define EcsEntityIsTraversable        (1u << 29)
+//跟据是否MassEntityUniqueID组件来设置Enity是否开启ChangedBitSet标识
+#define ECSEntityHasChangedBitSet     (1u << 28)
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,6 +355,9 @@ extern "C" {
 #define EcsTableHasOnSet               (1u << 17u)
 #define EcsTableHasUnSet               (1u << 18u)
 
+//用来标识table有ChangedBitset开关
+#define EcsTableHasToggleChangedBitset (1u << 19u)
+
 #define EcsTableHasObserved            (1u << 20u)
 #define EcsTableHasTarget              (1u << 21u)
 
@@ -360,7 +365,7 @@ extern "C" {
 
 /* Composite table flags */
 #define EcsTableHasLifecycle        (EcsTableHasCtors | EcsTableHasDtors)
-#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasToggle)
+#define EcsTableIsComplex           (EcsTableHasLifecycle | EcsTableHasUnion | EcsTableHasToggle | EcsTableHasToggleChangedBitset)
 #define EcsTableHasAddActions       (EcsTableHasIsA | EcsTableHasUnion | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
 #define EcsTableHasRemoveActions    (EcsTableHasIsA | EcsTableHasDtors | EcsTableHasOnRemove | EcsTableHasUnSet)
 
@@ -607,14 +612,15 @@ typedef struct ecs_allocator_t ecs_allocator_t;
 ////////////////////////////////////////////////////////////////////////////////
 //// Entity id macros
 ////////////////////////////////////////////////////////////////////////////////
-
-#define ECS_ROW_MASK                  (0x0FFFFFFFu)
+//控制row的mask 如ECSEntityHasChangedBitSet
+#define ECS_ROW_MASK                  (0x07FFFFFFu)
 #define ECS_ROW_FLAGS_MASK            (~ECS_ROW_MASK)
 #define ECS_RECORD_TO_ROW(v)          (ECS_CAST(int32_t, (ECS_CAST(uint32_t, v) & ECS_ROW_MASK)))
 #define ECS_RECORD_TO_ROW_FLAGS(v)    (ECS_CAST(uint32_t, v) & ECS_ROW_FLAGS_MASK)
 #define ECS_ROW_TO_RECORD(row, flags) (ECS_CAST(uint32_t, (ECS_CAST(uint32_t, row) | (flags))))
 
-#define ECS_ID_FLAGS_MASK             (0xFFull << 60)
+//控制Entity的mask 如ECS_TOGGLE_CHANGED_BITSET
+#define ECS_ID_FLAGS_MASK             (0xFFull << 58)
 #define ECS_ENTITY_MASK               (0xFFFFFFFFull)
 #define ECS_GENERATION_MASK           (0xFFFFull << 32)
 #define ECS_GENERATION(e)             ((e & ECS_GENERATION_MASK) >> 32)
@@ -3822,6 +3828,12 @@ FLECS_API extern const ecs_id_t ECS_AND;
 
 /** @} */
 
+/** Adds bitset to storage which allows component to be enable record changed status/disable record changed status*/
+FLECS_API extern const ecs_id_t ECS_TOGGLE_CHANGED_BITSET;
+
+/** Adds bitset to storage which allows component to be enable nosync/disable nosync*/
+FLECS_API extern const ecs_id_t ECS_TOGGLE_NOSYNC;
+
 /**
  * @defgroup builtin_tags Builtin component ids.
  * @{
@@ -5084,6 +5096,42 @@ bool ecs_is_enabled_id(
     const ecs_world_t *world,
     ecs_entity_t entity,
     ecs_id_t id);
+
+/** @} */
+
+
+/**
+ * @defgroup set component changed status for entity.
+ * @{
+ */
+
+/** set component changed status.
+ *
+ * @param world The world.
+ * @param entity The entity.
+ * @param id The component.
+ * @param changed True to the component changed, false to component no changed.
+ */
+FLECS_API 
+void ecs_set_id_changed(
+    ecs_world_t *world,
+    ecs_entity_t entity,
+    ecs_id_t id,
+    bool changed);
+
+/** Test if component is changed.
+ *
+ * @param world The world.
+ * @param entity The entity.
+ * @param id The component.
+ * @return True if the component is changed, otherwise false.
+ */
+FLECS_API 
+bool ecs_is_id_changed(
+    const ecs_world_t *world,
+    ecs_entity_t entity,
+    ecs_id_t id);
+
 
 /** @} */
 
@@ -14633,6 +14681,8 @@ enum oper_kind_t {
 static const flecs::entity_t Pair = ECS_PAIR;
 static const flecs::entity_t Override = ECS_OVERRIDE;
 static const flecs::entity_t Toggle = ECS_TOGGLE;
+static const flecs::entity_t Toggle_CHANGED_BITSET = ECS_TOGGLE_CHANGED_BITSET;
+static const flecs::entity_t Toggle_NOSYNC = ECS_TOGGLE_NOSYNC;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Builtin components and tags 

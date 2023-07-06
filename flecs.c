@@ -450,6 +450,7 @@ struct ecs_data_t {
     ecs_vec_t *columns;          /* Component columns */
     ecs_switch_t *sw_columns;    /* Switch columns */
     ecs_bitset_t *bs_columns;    /* Bitset columns */
+    ecs_bitset_t *changed_bs_columns;    /* Changed Bitset columns */
 };
 
 /** Cache of added/removed components for non-trivial edges between tables */
@@ -529,6 +530,8 @@ struct ecs_table_t {
     int16_t bs_count;
     int16_t bs_offset;
     int16_t ft_offset;
+    int16_t changed_bs_count;
+    int16_t changed_bs_offset;
 
     uint16_t record_count;           /* Table record count including wildcards */
     int32_t refcount;                /* Increased when used as storage table */
@@ -788,7 +791,10 @@ typedef enum ecs_cmd_kind_t {
     EcsOpOnDeleteAction,
     EcsOpEnable,
     EcsOpDisable,
-    EcsOpSkip
+    EcsOpSkip,
+    //用来批量修改Component changed状态
+    EcsOpChanged,
+    EcsOpNotChanged,
 } ecs_cmd_kind_t;
 
 typedef struct ecs_cmd_1_t {
@@ -1738,6 +1744,13 @@ bool flecs_defer_enable(
     ecs_entity_t component,
     bool enable);    
 
+bool flecs_defer_changed(
+    ecs_world_t *world,
+    ecs_stage_t *stage,
+    ecs_entity_t entity,
+    ecs_entity_t component,
+    bool changed);   
+
 bool flecs_defer_add(
     ecs_stage_t *stage,
     ecs_entity_t entity,
@@ -2511,11 +2524,14 @@ void flecs_table_check_sanity(ecs_table_t *table) {
     int32_t sw_count = table->sw_count;
     int32_t bs_offset = table->bs_offset;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_offset = table->changed_bs_offset;
+    int32_t changed_bs_count = table->changed_bs_count;
     int32_t type_count = table->type.count;
     ecs_id_t *ids = table->type.array;
 
     ecs_assert((sw_count + sw_offset) <= type_count, ECS_INTERNAL_ERROR, NULL);
     ecs_assert((bs_count + bs_offset) <= type_count, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert((changed_bs_count + bs_offset) <= type_count, ECS_INTERNAL_ERROR, NULL);
 
     ecs_table_t *storage_table = table->storage_table;
     if (storage_table) {
@@ -2575,6 +2591,18 @@ void flecs_table_check_sanity(ecs_table_t *table) {
             ecs_assert(flecs_bitset_count(bs) == count,
                 ECS_INTERNAL_ERROR, NULL);
             ecs_assert(ECS_HAS_ID_FLAG(ids[i + bs_offset], TOGGLE),
+                ECS_INTERNAL_ERROR, NULL);
+        }
+    }
+
+    if (changed_bs_count) {
+        ecs_assert(table->data.changed_bs_columns != NULL, 
+            ECS_INTERNAL_ERROR, NULL);
+        for (i = 0; i < changed_bs_count; i ++) {
+            ecs_bitset_t *changed_bs = &table->data.changed_bs_columns[i];
+            ecs_assert(flecs_bitset_count(changed_bs) == count,
+                ECS_INTERNAL_ERROR, NULL);
+            ecs_assert(ECS_HAS_ID_FLAG(ids[i + changed_bs_offset], TOGGLE_CHANGED_BITSET),
                 ECS_INTERNAL_ERROR, NULL);
         }
     }
@@ -2755,12 +2783,13 @@ void flecs_table_init_data(
 {
     int32_t sw_count = table->sw_count;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_count = table->changed_bs_count;
 
     ecs_data_t *storage = &table->data;
     int32_t i, count = table->storage_count;
 
     /* Root tables don't have columns */
-    if (!count && !sw_count && !bs_count) {
+    if (!count && !sw_count && !bs_count && !changed_bs_count) {
         storage->columns = NULL;
     }
 
@@ -2790,6 +2819,13 @@ void flecs_table_init_data(
         storage->bs_columns = flecs_wcalloc_n(world, ecs_bitset_t, bs_count);
         for (i = 0; i < bs_count; i ++) {
             flecs_bitset_init(&storage->bs_columns[i]);
+        }
+    }
+
+    if (changed_bs_count) {
+        storage->changed_bs_columns = flecs_wcalloc_n(world, ecs_bitset_t, changed_bs_count);
+        for (i = 0; i < changed_bs_count; i ++) {
+            flecs_bitset_init(&storage->changed_bs_columns[i]);
         }
     }
 }
@@ -2864,6 +2900,14 @@ void flecs_table_init_flags(
                         table->bs_offset = flecs_ito(int16_t, i);
                     }
                     table->bs_count ++;
+                }
+                if (ECS_HAS_ID_FLAG(id, TOGGLE_CHANGED_BITSET)) {
+                    table->flags |= EcsTableHasToggleChangedBitset;
+
+                    if (!table->changed_bs_count) {
+                        table->changed_bs_offset = flecs_ito(int16_t, i);
+                    }
+                    table->changed_bs_count ++;
                 }
                 if (ECS_HAS_ID_FLAG(id, OVERRIDE)) {
                     table->flags |= EcsTableHasOverrides;
@@ -3460,6 +3504,16 @@ void flecs_table_fini_data(
         data->bs_columns = NULL;
     }
 
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
+    if (changed_bs_columns) {
+        int32_t c, column_count = table->changed_bs_count;
+        for (c = 0; c < column_count; c ++) {
+            flecs_bitset_fini(&changed_bs_columns[c]);
+        }
+        flecs_wfree_n(world, ecs_bitset_t, column_count, changed_bs_columns);
+        data->changed_bs_columns = NULL;
+    }
+
     ecs_vec_fini_t(&world->allocator, &data->entities, ecs_entity_t);
     ecs_vec_fini_t(&world->allocator, &data->records, ecs_record_t*);
 
@@ -3823,6 +3877,75 @@ void flecs_table_move_bitset_columns(
 }
 
 static
+void flecs_table_move_changed_bitset_columns(
+    ecs_table_t *dst_table, 
+    int32_t dst_index,
+    ecs_table_t *src_table, 
+    int32_t src_index,
+    int32_t count,
+    bool clear)
+{
+    int32_t i_old = 0, src_column_count = src_table->changed_bs_count;
+    int32_t i_new = 0, dst_column_count = dst_table->changed_bs_count;
+
+    if (!src_column_count && !dst_column_count) {
+        return;
+    }
+
+    ecs_bitset_t *src_columns = src_table->data.changed_bs_columns;
+    ecs_bitset_t *dst_columns = dst_table->data.changed_bs_columns;
+
+    ecs_type_t dst_type = dst_table->type;
+    ecs_type_t src_type = src_table->type;
+
+    int32_t offset_new = dst_table->changed_bs_offset;
+    int32_t offset_old = src_table->changed_bs_offset;
+
+    ecs_id_t *dst_ids = dst_type.array;
+    ecs_id_t *src_ids = src_type.array;
+
+    for (; (i_new < dst_column_count) && (i_old < src_column_count);) {
+        ecs_id_t dst_id = dst_ids[i_new + offset_new];
+        ecs_id_t src_id = src_ids[i_old + offset_old];
+
+        if (dst_id == src_id) {
+            ecs_bitset_t *src_bs = &src_columns[i_old];
+            ecs_bitset_t *dst_bs = &dst_columns[i_new];
+
+            flecs_bitset_ensure(dst_bs, dst_index + count);
+
+            int i;
+            for (i = 0; i < count; i ++) {
+                uint64_t value = flecs_bitset_get(src_bs, src_index + i);
+                flecs_bitset_set(dst_bs, dst_index + i, value);
+            }
+
+            if (clear) {
+                ecs_assert(count == flecs_bitset_count(src_bs), 
+                    ECS_INTERNAL_ERROR, NULL);
+                flecs_bitset_fini(src_bs);
+            }
+        } else if (dst_id > src_id) {
+            ecs_bitset_t *src_bs = &src_columns[i_old];
+            flecs_bitset_fini(src_bs);
+        }
+
+        i_new += dst_id <= src_id;
+        i_old += dst_id >= src_id;
+    }
+
+    /* Clear remaining columns */
+    if (clear) {
+        for (; (i_old < src_column_count); i_old ++) {
+            ecs_bitset_t *src_bs = &src_columns[i_old];
+            ecs_assert(count == flecs_bitset_count(src_bs), 
+                ECS_INTERNAL_ERROR, NULL);
+            flecs_bitset_fini(src_bs);
+        }
+    }
+}
+
+static
 void* flecs_table_grow_column(
     ecs_world_t *world,
     ecs_vec_t *column,
@@ -3909,9 +4032,11 @@ int32_t flecs_table_grow_data(
     int32_t column_count = table->storage_count;
     int32_t sw_count = table->sw_count;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_count = table->changed_bs_count;
     ecs_vec_t *columns = data->columns;
     ecs_switch_t *sw_columns = data->sw_columns;
     ecs_bitset_t *bs_columns = data->bs_columns; 
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
 
     /* Add record to record ptr array */
     ecs_vec_set_size_t(&world->allocator, &data->records, ecs_record_t*, size);
@@ -3957,6 +4082,12 @@ int32_t flecs_table_grow_data(
     for (i = 0; i < bs_count; i ++) {
         ecs_bitset_t *bs = &bs_columns[i];
         flecs_bitset_addn(bs, to_add);
+    }
+
+    /* Add elements to each changed bitset column */
+    for (i = 0; i < changed_bs_count; i ++) {
+        ecs_bitset_t *changed_bs = &changed_bs_columns[i];
+        flecs_bitset_addn(changed_bs, to_add);
     }
 
     /* If the table is monitored indicate that there has been a change */
@@ -4037,8 +4168,10 @@ int32_t flecs_table_append(
 
     int32_t sw_count = table->sw_count;
     int32_t bs_count = table->bs_count;
+    int32_t changed_bs_count = table->changed_bs_count;
     ecs_switch_t *sw_columns = data->sw_columns;
     ecs_bitset_t *bs_columns = data->bs_columns;
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
     ecs_entity_t *entities = data->entities.array;
 
     /* Reobtain size to ensure that the columns have the same size as the 
@@ -4078,6 +4211,13 @@ int32_t flecs_table_append(
         ecs_bitset_t *bs = &bs_columns[i];
         flecs_bitset_addn(bs, 1);
     }    
+
+    /* Add element to each changed bitset column */
+    for (i = 0; i < changed_bs_count; i ++) {
+        ecs_assert(changed_bs_columns != NULL, ECS_INTERNAL_ERROR, NULL);
+        ecs_bitset_t *changed_bs = &changed_bs_columns[i];
+        flecs_bitset_addn(changed_bs, 1);
+    }   
 
     /* If this is the first entity in this table, signal queries so that the
      * table moves from an inactive table to an active table. */
@@ -4248,6 +4388,13 @@ void flecs_table_delete(
         flecs_bitset_remove(&bs_columns[i], index);
     }
 
+    /* Remove elements from changed bitset columns */
+    ecs_bitset_t *changed_bs_columns = data->changed_bs_columns;
+    int32_t changed_bs_count = table->changed_bs_count;
+    for (i = 0; i < changed_bs_count; i ++) {
+        flecs_bitset_remove(&changed_bs_columns[i], index);
+    }
+
     flecs_table_check_sanity(table);
 }
 
@@ -4317,6 +4464,7 @@ void flecs_table_move(
 
     flecs_table_move_switch_columns(dst_table, dst_index, src_table, src_index, 1, false);
     flecs_table_move_bitset_columns(dst_table, dst_index, src_table, src_index, 1, false);
+    flecs_table_move_changed_bitset_columns(dst_table, dst_index, src_table, src_index, 1, false);
 
     /* If the source and destination entities are the same, move component 
      * between tables. If the entities are not the same (like when cloning) use
@@ -4517,6 +4665,26 @@ void flecs_table_swap_bitset_columns(
     }
 }
 
+static
+void flecs_table_swap_changed_bitset_columns(
+    ecs_table_t *table,
+    ecs_data_t *data,
+    int32_t row_1,
+    int32_t row_2)
+{
+    int32_t i = 0, column_count = table->changed_bs_count;
+    if (!column_count) {
+        return;
+    }
+
+    ecs_bitset_t *columns = data->changed_bs_columns;
+
+    for (i = 0; i < column_count; i ++) {
+        ecs_bitset_t *bs = &columns[i];
+        flecs_bitset_swap(bs, row_1, row_2);
+    }
+}
+
 void flecs_table_swap(
     ecs_world_t *world,
     ecs_table_t *table,
@@ -4563,6 +4731,7 @@ void flecs_table_swap(
 
     flecs_table_swap_switch_columns(table, &table->data, row_1, row_2);
     flecs_table_swap_bitset_columns(table, &table->data, row_1, row_2);  
+    flecs_table_swap_changed_bitset_columns(table, &table->data, row_1, row_2);  
 
     ecs_vec_t *columns = table->data.columns;
     if (!columns) {
@@ -4727,6 +4896,7 @@ void flecs_merge_table_data(
 
     flecs_table_move_switch_columns(dst_table, dst_count, src_table, 0, src_count, true);
     flecs_table_move_bitset_columns(dst_table, dst_count, src_table, 0, src_count, true);
+    flecs_table_move_changed_bitset_columns(dst_table, dst_count, src_table, 0, src_count, true);
 
     /* Initialize remaining columns */
     for (; i_new < dst_column_count; i_new ++) {
@@ -8416,6 +8586,9 @@ void flecs_copy_ptr_w_id(
 
     flecs_table_mark_dirty(world, r->table, id);
 
+    //修改changed_bitset的状态
+    ecs_set_id_changed(world, entity, id, true);
+
     ecs_table_t *table = r->table;
     if (table->flags & EcsTableHasOnSet || ti->hooks.on_set) {
         ecs_type_t ids = { .array = &id, .count = 1 };
@@ -8464,6 +8637,8 @@ void flecs_move_ptr_w_id(
     }
 
     flecs_table_mark_dirty(world, r->table, id);
+
+    ecs_set_id_changed(world, entity, id, true);
 
     if (cmd_kind == EcsOpSet) {
         ecs_table_t *table = r->table;
@@ -8584,6 +8759,92 @@ bool ecs_is_enabled_id(
     ecs_bitset_t *bs = &table->data.bs_columns[index];
 
     return flecs_bitset_get(bs, ECS_RECORD_TO_ROW(r->row));
+error:
+    return false;
+}
+
+
+void ecs_set_id_changed(
+    ecs_world_t *world,
+    ecs_entity_t entity,
+    ecs_id_t id,
+    bool changed)
+{
+    ecs_check(world != NULL, ECS_INVALID_PARAMETER, NULL);
+    ecs_check(ecs_is_valid(world, entity), ECS_INVALID_PARAMETER, NULL);
+    ecs_check(ecs_id_is_valid(world, id), ECS_INVALID_PARAMETER, NULL);
+
+    ecs_stage_t *stage = flecs_stage_from_world(&world);
+
+    if (flecs_defer_changed(
+        world, stage, entity, id, changed))
+    {
+        return;
+    } else {
+        /* Operations invoked by changed/notchanged should not be deferred */
+        stage->defer --;
+    }
+
+    ecs_record_t *r = flecs_entities_ensure(world, entity);
+    ecs_entity_t changed_bs_id = id | ECS_TOGGLE_CHANGED_BITSET;
+    
+    ecs_table_t *table = r->table;
+    int32_t index = -1;
+    if (table) {
+        index = ecs_search(world, table, changed_bs_id, 0);
+    }
+
+    //如果没有添加ECS_TOGGLE_CHANGED_BITSET标识的组件进entity, 默认不记录changed状态
+    if (index == -1) {
+        // ecs_add_id(world, entity, changed_bs_id);
+        // ecs_set_id_changed(world, entity, id, changed);
+        return;
+    }
+
+    index -= table->changed_bs_offset;
+    ecs_assert(index >= 0, ECS_INTERNAL_ERROR, NULL);
+
+    /* Data cannot be NULl, since entity is stored in the table */
+    ecs_bitset_t *changed_bs = &table->data.changed_bs_columns[index];
+    ecs_assert(changed_bs != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    flecs_bitset_set(changed_bs, ECS_RECORD_TO_ROW(r->row), changed);
+error:
+    return;
+}
+
+bool ecs_is_id_changed(
+    const ecs_world_t *world,
+    ecs_entity_t entity,
+    ecs_id_t id)
+{
+    ecs_check(world != NULL, ECS_INVALID_PARAMETER, NULL);
+    ecs_check(ecs_is_valid(world, entity), ECS_INVALID_PARAMETER, NULL);
+    ecs_check(ecs_id_is_valid(world, id), ECS_INVALID_PARAMETER, NULL);
+
+    /* Make sure we're not working with a stage */
+    world = ecs_get_world(world);
+
+    ecs_record_t *r = flecs_entities_get(world, entity);
+    ecs_table_t *table;
+    if (!r || !(table = r->table)) {
+        return false;
+    }
+
+    ecs_entity_t changed_bs_id = id | ECS_TOGGLE_CHANGED_BITSET;
+    int32_t index = ecs_search(world, table, changed_bs_id, 0);
+    if (index == -1) {
+        /* If table does not have ECS_TOGGLE_CHANGED_BITSET column for component, component is
+         * always notchanged, if the entity has it */
+        // return ecs_has_id(world, entity, id);
+        return false;
+    }
+
+    index -= table->changed_bs_offset;
+    ecs_assert(index >= 0, ECS_INTERNAL_ERROR, NULL);
+    ecs_bitset_t *changed_bs = &table->data.changed_bs_columns[index];
+
+    return flecs_bitset_get(changed_bs, ECS_RECORD_TO_ROW(r->row));
 error:
     return false;
 }
@@ -9534,6 +9795,12 @@ const char* ecs_id_flag_str(
     } else
     if (ECS_HAS_ID_FLAG(entity, TOGGLE)) {
         return "TOGGLE";
+    } 
+    else if (ECS_HAS_ID_FLAG(entity, TOGGLE_CHANGED_BITSET)) {
+        return "TOGGLE_CHANGED_BITSET";
+    } 
+    else if (ECS_HAS_ID_FLAG(entity, TOGGLE_NOSYNC)) {
+        return "TOGGLE_NOSYNC";
     } else
     if (ECS_HAS_ID_FLAG(entity, AND)) {
         return "AND";
@@ -9556,6 +9823,16 @@ void ecs_id_str_buf(
 
     if (ECS_HAS_ID_FLAG(id, TOGGLE)) {
         ecs_strbuf_appendstr(buf, ecs_id_flag_str(ECS_TOGGLE));
+        ecs_strbuf_appendch(buf, '|');
+    }
+
+    if (ECS_HAS_ID_FLAG(id, TOGGLE_CHANGED_BITSET)) {
+        ecs_strbuf_appendstr(buf, ecs_id_flag_str(ECS_TOGGLE_CHANGED_BITSET));
+        ecs_strbuf_appendch(buf, '|');
+    }
+
+    if (ECS_HAS_ID_FLAG(id, TOGGLE_NOSYNC)) {
+        ecs_strbuf_appendstr(buf, ecs_id_flag_str(ECS_TOGGLE_NOSYNC));
         ecs_strbuf_appendch(buf, '|');
     }
 
@@ -10081,6 +10358,15 @@ bool flecs_defer_end(
                     ecs_enable_id(world, e, id, false);
                     world->info.cmd.other_count ++;
                     break;
+                //批量修改component changed状态
+                case EcsOpChanged:
+                    ecs_set_id_changed(world, e, id, true);
+                    world->info.cmd.other_count ++;
+                    break;
+                case EcsOpNotChanged:
+                    ecs_set_id_changed(world, e, id, false);
+                    world->info.cmd.other_count ++;
+                    break;
                 case EcsOpBulkNew:
                     flecs_flush_bulk_new(world, cmd);
                     world->info.cmd.other_count ++;
@@ -10433,6 +10719,25 @@ bool flecs_defer_enable(
         ecs_cmd_t *cmd = flecs_cmd_new(stage, entity, false, false);
         if (cmd) {
             cmd->kind = enable ? EcsOpEnable : EcsOpDisable;
+            cmd->entity = entity;
+            cmd->id = id;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool flecs_defer_changed(
+    ecs_world_t *world,
+    ecs_stage_t *stage,
+    ecs_entity_t entity,
+    ecs_id_t id,
+    bool changed)
+{
+    if (flecs_defer_cmd(stage)) {
+        ecs_cmd_t *cmd = flecs_cmd_new(stage, entity, false, false);
+        if (cmd) {
+            cmd->kind = changed ? EcsOpChanged : EcsOpNotChanged;
             cmd->entity = entity;
             cmd->id = id;
         }
@@ -41422,6 +41727,8 @@ void FlecsDocImport(
 #define TOK_ROLE_OR "OR"
 #define TOK_ROLE_NOT "NOT"
 #define TOK_ROLE_TOGGLE "TOGGLE"
+#define TOK_ROLE_TOGGLE_CHANGED_BITSET "TOGGLE_CHANGED_BITSET"
+#define TOK_ROLE_TOGGLE_NOSYNC "TOGGLE_NOSYNC"
 
 #define TOK_IN "in"
 #define TOK_OUT "out"
@@ -41688,7 +41995,11 @@ ecs_entity_t flecs_parse_role(
     } else if (!ecs_os_strcmp(token, TOK_OVERRIDE)) {
         return ECS_OVERRIDE;
     } else if (!ecs_os_strcmp(token, TOK_ROLE_TOGGLE)) {
-        return ECS_TOGGLE;        
+        return ECS_TOGGLE;
+    } else if (!ecs_os_strcmp(token, TOK_ROLE_TOGGLE_CHANGED_BITSET)) {
+        return ECS_TOGGLE_CHANGED_BITSET;      
+    } else if (!ecs_os_strcmp(token, TOK_ROLE_TOGGLE_NOSYNC)) {
+        return ECS_TOGGLE_NOSYNC;        
     } else {
         ecs_parser_error(name, sig, column, "invalid role '%s'", token);
         return 0;
@@ -43429,6 +43740,9 @@ const ecs_id_t ECS_PAIR =                                          (1ull << 63);
 const ecs_id_t ECS_OVERRIDE =                                      (1ull << 62);
 const ecs_id_t ECS_TOGGLE =                                        (1ull << 61);
 const ecs_id_t ECS_AND =                                           (1ull << 60);
+//处定义添加的两个开关标识
+const ecs_id_t ECS_TOGGLE_CHANGED_BITSET =                         (1ull << 59);
+const ecs_id_t ECS_TOGGLE_NOSYNC =                                 (1ull << 58);
 
 /** Builtin component ids */
 const ecs_entity_t ecs_id(EcsComponent) =                                   1;
