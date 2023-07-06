@@ -292,7 +292,7 @@ bool flecs_defer_changed(
     ecs_id_t id,
     bool changed)
 {
-    if (flecs_defer_cmd(world, stage)) {
+    if (flecs_defer_cmd(stage)) {
         ecs_cmd_t *cmd = flecs_cmd_new(stage, entity, false, false);
         if (cmd) {
             cmd->kind = changed ? EcsOpChanged : EcsOpNotChanged;
