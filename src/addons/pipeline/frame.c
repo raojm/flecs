@@ -2,6 +2,7 @@
 
 #ifdef FLECS_PIPELINE
 #include "pipeline.h"
+#include "flecs/private/changed_bitset.h"
 
 static
 ecs_ftime_t flecs_insert_sleep(
@@ -169,8 +170,11 @@ void ecs_frame_end(
     world->on_commands_active = NULL;
     world->on_commands_ctx_active = NULL;
 
+    /* Clear all changed bitset status at frame end */
+    flecs_clear_all_changed(world);
+
     world->flags &= ~EcsWorldFrameInProgress;
-    
+
 error:
     return;
 }

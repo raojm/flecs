@@ -1265,6 +1265,7 @@ void flecs_table_fini(
     }
 
     flecs_table_fini_overrides(world, table);
+    flecs_table_changed_bs_fini(table);
     flecs_wfree_n(world, int32_t, table->column_count + 1, table->dirty_state);
     flecs_wfree_n(world, int16_t, table->column_count + table->type.count, 
         table->column_map);
@@ -1906,6 +1907,10 @@ void flecs_table_fast_move(
         i_new += dst_id <= src_id;
         i_old += dst_id >= src_id;
     }
+
+    /* Move changed bitset data */
+    flecs_table_changed_bs_move(
+        dst_table, dst_index, src_table, src_index);
 }
 
 /* Move entity from src to dst table */
@@ -1941,6 +1946,9 @@ void flecs_table_move(
 
     flecs_table_move_bitset_columns(
         dst_table, dst_index, src_table, src_index, 1, false);
+
+    flecs_table_changed_bs_move(
+        dst_table, dst_index, src_table, src_index);
 
     /* Call move_dtor for moved away from storage only if the entity is at the
      * last index in the source table. If it isn't the last entity, the last 

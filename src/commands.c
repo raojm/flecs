@@ -865,6 +865,10 @@ void flecs_cmd_batch_for_entity(
         case EcsCmdAdd:
             table = flecs_find_table_add(world, table, id, diff);
             world->info.cmd.batched_command_count ++;
+            /* Mark as changed for both ecs_add and ecs_set
+             * This ensures first-time component addition triggers systems
+             * and is tracked in the changed map */
+            flecs_mark_changed_on_set(world, entity, id);
             cmd->kind = EcsCmdSkip;
             break;
         case EcsCmdSet:
@@ -1170,6 +1174,12 @@ bool flecs_defer_end(
                         if (id) {
                             world->info.cmd.add_count ++;
                             flecs_add_id(world, e, id);
+                            /* Auto-track component change for deferred operations
+                             * Note: flecs_add_id may have changed the entity's table,
+                             * so we need to call flecs_mark_changed_on_set after it
+                             * This applies to both ecs_add and ecs_set to ensure
+                             * first-time component addition triggers systems */
+                            flecs_mark_changed_on_set(world, e, id);
                         } else {
                             world->info.cmd.discard_count ++;
                         }
@@ -1190,6 +1200,7 @@ bool flecs_defer_end(
                     flecs_set_id_move(world, dst_stage, e, 
                         cmd->id, flecs_itosize(cmd->is._1.size), 
                         cmd->is._1.value, kind);
+                    flecs_mark_changed_on_set(world, e, id);
                     world->info.cmd.set_count ++;
                     break;
                 case EcsCmdEmplace:
@@ -1204,12 +1215,14 @@ bool flecs_defer_end(
                     flecs_set_id_move(world, dst_stage, e, 
                         cmd->id, flecs_itosize(cmd->is._1.size), 
                         cmd->is._1.value, kind);
+                    flecs_mark_changed_on_set(world, e, id);
                     world->info.cmd.ensure_count ++;
                     break;
                 case EcsCmdEnsure:
                     flecs_set_id_move(world, dst_stage, e, 
                         cmd->id, flecs_itosize(cmd->is._1.size), 
                         cmd->is._1.value, kind);
+                    flecs_mark_changed_on_set(world, e, id);
                     world->info.cmd.ensure_count ++;
                     break;
                 case EcsCmdModified:
@@ -1223,6 +1236,7 @@ bool flecs_defer_end(
                 case EcsCmdAddModified:
                     flecs_add_id(world, e, id);
                     flecs_modified_id_if(world, e, id, true);
+                    flecs_mark_changed_on_set(world, e, id);
                     world->info.cmd.set_count ++;
                     break;
                 case EcsCmdDelete: {

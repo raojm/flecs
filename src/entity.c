@@ -482,6 +482,11 @@ void flecs_add_id(
 
     flecs_commit(world, entity, r, dst_table, &diff, true, 0);
 
+    /* Auto-track component change for add operations
+     * This ensures first-time component addition triggers systems
+     * and is tracked in the changed map */
+    flecs_mark_changed_on_set(world, entity, component);
+
     flecs_defer_end(world, stage);
 }
 
@@ -2249,6 +2254,9 @@ void flecs_modified_id_if(
         return;
     }
 
+    /* Auto-track component change */
+    flecs_mark_changed_on_set(world, entity, component);
+
     ecs_record_t *r = flecs_entities_get(world, entity);
     ecs_table_t *table = r->table;
     ecs_assert(table != NULL, ECS_INTERNAL_ERROR, NULL);
@@ -2279,12 +2287,6 @@ void ecs_modified_id(
 
     ecs_stage_t *stage = flecs_stage_from_world(&world);
 
-    if (component < FLECS_HI_COMPONENT_ID) {
-        if (!world->non_trivial_set[component]) {
-            return;
-        }
-    }
-
     if (flecs_defer_modified(stage, entity, component)) {
         return;
     }
@@ -2298,12 +2300,23 @@ void ecs_modified_id(
             flecs_errstr(ecs_get_path(world, entity)),
             flecs_errstr_2(ecs_id_str(world, component)));
 
+    /* Auto-track component change (before early return) */
+    flecs_mark_changed_on_set(world, entity, component);
+
+    if (component < FLECS_HI_COMPONENT_ID) {
+        if (!world->non_trivial_set[component]) {
+            flecs_defer_end(world, stage);
+            return;
+        }
+    }
+
     ecs_record_t *r = flecs_entities_get(world, entity);
     ecs_table_t *table = r->table;
     flecs_notify_on_set(
         world, table, ECS_RECORD_TO_ROW(r->row), component, true);
 
     flecs_table_mark_dirty(world, table, component);
+
     flecs_defer_end(world, stage);
 error:
     return;
@@ -2406,6 +2419,9 @@ void ecs_set_id(
     flecs_copy_id(world, entity, r, component, size, dst.ptr, ptr, dst.ti);
 
 done:
+    /* Auto-track component change */
+    flecs_mark_changed_on_set(world, entity, component);
+
     flecs_defer_end(world, stage);
 error:
     return;

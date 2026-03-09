@@ -1004,6 +1004,7 @@ struct ecs_type_info_t {
 #include "flecs/private/api_support.h"      /* Supporting API functions */
 #include "flecs/datastructures/hashmap.h"   /* Hashmap */
 #include "flecs/private/api_internals.h"    /* Supporting API functions */
+#include "flecs/private/changed_bitset.h"   /* Changed bitset API */
 
 /** Utility to hold a value of a dynamic type. */
 typedef struct ecs_value_t {

@@ -231,6 +231,7 @@ extern "C" {
 #define EcsTableHasCopy                (1u << 13u)
 #define EcsTableHasMove                (1u << 14u)
 #define EcsTableHasToggle              (1u << 15u)
+#define EcsTableHasToggleChangedBitset (1u << 26u) /* Table has changed bitset tracking */
 
 #define EcsTableHasOnAdd               (1u << 16u) /* Same values as id flags */
 #define EcsTableHasOnRemove            (1u << 17u)
@@ -249,7 +250,7 @@ extern "C" {
 
 /* Composite table flags */
 #define EcsTableHasLifecycle     (EcsTableHasCtors | EcsTableHasDtors)
-#define EcsTableIsComplex        (EcsTableHasLifecycle | EcsTableHasToggle | EcsTableHasSparse)
+#define EcsTableIsComplex        (EcsTableHasLifecycle | EcsTableHasToggle | EcsTableHasSparse | EcsTableHasToggleChangedBitset)
 #define EcsTableHasAddActions    (EcsTableHasIsA | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
 #define EcsTableHasRemoveActions (EcsTableHasIsA | EcsTableHasDtors | EcsTableHasOnRemove)
 #define EcsTableEdgeFlags        (EcsTableHasOnAdd | EcsTableHasOnRemove | EcsTableHasSparse)

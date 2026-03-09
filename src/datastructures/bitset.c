@@ -13,6 +13,10 @@ void flecs_bitset_ensure_size(
     ecs_bitset_t *bs,
     ecs_size_t size)
 {
+    if (size <= 0) {
+        return;
+    }
+    
     if (!bs->size) {
         int32_t new_size = ((size - 1) / 64 + 1) * ECS_SIZEOF(uint64_t);
         bs->size = ((size - 1) / 64 + 1) * 64;

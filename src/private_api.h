@@ -19,6 +19,7 @@
 
 #include "flecs.h"
 #include "flecs/datastructures/bitset.h"
+#include "flecs/private/changed_bitset.h"
 #include "datastructures/name_index.h"
 #include "storage/entity_index.h"
 #include "storage/table_cache.h"
