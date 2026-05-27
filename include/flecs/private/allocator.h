@@ -18,6 +18,15 @@ struct ecs_allocator_t {
     struct ecs_sparse_t sizes; /* <size, block_allocator_t> */
 };
 
+typedef struct ecs_data_allocator_t {
+    void* (*malloc_fn)(void *ctx, ecs_size_t size);
+    void (*free_fn)(void *ctx, void *ptr);
+    void* (*realloc_fn)(void *ctx, void *ptr, ecs_size_t size);
+    void* (*calloc_fn)(void *ctx, ecs_size_t size);
+    bool (*contains_fn)(void *ctx, const void *ptr);
+    void *ctx;
+} ecs_data_allocator_t;
+
 FLECS_API
 void flecs_allocator_init(
     ecs_allocator_t *a);

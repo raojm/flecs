@@ -1399,6 +1399,22 @@ FLECS_API
 int ecs_fini(
     ecs_world_t *world);
 
+/** Set a custom data allocator for component data.
+ * When set, component column memory (Position[], Velocity[], etc.) is allocated
+ * through this allocator instead of the default world allocator. This enables
+ * mapping component data to a shared memory region (e.g., WAMR Shared Heap)
+ * while keeping Flecs metadata in the default allocator.
+ *
+ * When any function pointer is NULL, the default ecs_os_api function is used.
+ * Must be called before any entities/components are created.
+ *
+ * @param world The world.
+ * @param data_allocator The data allocator to use for component columns. */
+FLECS_API
+void ecs_set_data_allocator(
+    ecs_world_t *world,
+    const ecs_data_allocator_t *data_allocator);
+
 /** Returns whether the world is being deleted.
  *
  * @param world The world.

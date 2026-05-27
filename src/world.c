@@ -563,6 +563,12 @@ void flecs_world_allocators_init(
 
     flecs_allocator_init(&world->allocator);
 
+    world->data_allocator.malloc_fn = NULL;
+    world->data_allocator.free_fn = NULL;
+    world->data_allocator.realloc_fn = NULL;
+    world->data_allocator.calloc_fn = NULL;
+    world->data_allocator.ctx = NULL;
+
     ecs_map_params_init(&a->ptr, &world->allocator);
     ecs_map_params_init(&a->query_table_list, &world->allocator);
 
@@ -1209,6 +1215,15 @@ ecs_entity_t flecs_get_oneof(
     } else {
         return 0;
     }
+}
+
+void ecs_set_data_allocator(
+    ecs_world_t *world,
+    const ecs_data_allocator_t *data_allocator)
+{
+    ecs_poly_assert(world, ecs_world_t);
+    ecs_assert(!(world->flags & EcsWorldReadonly), ECS_INVALID_OPERATION, NULL);
+    world->data_allocator = *data_allocator;
 }
 
 /* The destroyer of worlds */

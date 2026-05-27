@@ -280,3 +280,159 @@ void* ecs_vec_first(
 {
     return v->array;
 }
+
+/* Data allocator variants */
+
+static
+void* flecs_da_malloc(ecs_data_allocator_t *da, ecs_size_t size) {
+    return da->malloc_fn(da->ctx, size);
+}
+
+static
+void flecs_da_free(ecs_data_allocator_t *da, void *ptr) {
+    da->free_fn(da->ctx, ptr);
+}
+
+ecs_vec_t* ecs_vec_init_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size,
+    int32_t elem_count)
+{
+    ecs_assert(size != 0, ECS_INVALID_PARAMETER, NULL);
+    v->array = NULL;
+    v->count = 0;
+    if (elem_count) {
+        v->array = flecs_da_malloc(da, size * elem_count);
+    }
+    v->size = elem_count;
+#ifdef FLECS_DEBUG
+    v->elem_size = size;
+#endif
+    return v;
+}
+
+void ecs_vec_fini_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size)
+{
+    if (v->array) {
+        ecs_dbg_assert(!size || size == v->elem_size, ECS_INVALID_PARAMETER, NULL);
+        flecs_da_free(da, v->array);
+        v->array = NULL;
+        v->count = 0;
+        v->size = 0;
+    }
+}
+
+void ecs_vec_set_size_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size,
+    int32_t elem_count)
+{
+    ecs_dbg_assert(size == v->elem_size, ECS_INVALID_PARAMETER, NULL);
+    if (v->size != elem_count) {
+        if (elem_count < v->count) {
+            elem_count = v->count;
+        }
+
+        elem_count = flecs_next_pow_of_2(elem_count);
+        if (elem_count < 2) {
+            elem_count = 2;
+        }
+        if (elem_count != v->size) {
+            if (v->array) {
+                int32_t old_count = v->count;
+                void *new_array = flecs_da_malloc(da, size * elem_count);
+                ecs_os_memcpy(new_array, v->array, size * old_count);
+                flecs_da_free(da, v->array);
+                v->array = new_array;
+            } else {
+                v->array = flecs_da_malloc(da, size * elem_count);
+            }
+            v->size = elem_count;
+        }
+    }
+}
+
+void ecs_vec_set_count_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size,
+    int32_t elem_count)
+{
+    ecs_dbg_assert(size == v->elem_size, ECS_INVALID_PARAMETER, NULL);
+    if (v->count != elem_count) {
+        if (v->size < elem_count) {
+            ecs_vec_set_size_d(da, v, size, elem_count);
+        }
+        v->count = elem_count;
+    }
+}
+
+void* ecs_vec_grow_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size,
+    int32_t elem_count)
+{
+    ecs_dbg_assert(size == v->elem_size, ECS_INVALID_PARAMETER, NULL);
+    ecs_assert(elem_count > 0, ECS_INTERNAL_ERROR, NULL);
+    int32_t count = v->count;
+    ecs_vec_set_count_d(da, v, size, count + elem_count);
+    return ECS_ELEM(v->array, size, count);
+}
+
+void* ecs_vec_append_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size)
+{
+    ecs_dbg_assert(size == v->elem_size, ECS_INVALID_PARAMETER, NULL);
+    int32_t count = v->count;
+    if (v->size == count) {
+        ecs_vec_set_size_d(da, v, size, count + 1);
+    }
+    v->count = count + 1;
+    return ECS_ELEM(v->array, size, count);
+}
+
+void ecs_vec_reclaim_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size)
+{
+    ecs_dbg_assert(size == v->elem_size, ECS_INVALID_PARAMETER, NULL);
+    int32_t count = v->count;
+    if (count < v->size) {
+        if (count) {
+            void *new_array = flecs_da_malloc(da, size * count);
+            ecs_os_memcpy(new_array, v->array, size * count);
+            flecs_da_free(da, v->array);
+            v->array = new_array;
+            v->size = count;
+        } else {
+            ecs_vec_fini_d(da, v, size);
+        }
+    }
+}
+
+ecs_vec_t ecs_vec_copy_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *v,
+    ecs_size_t size)
+{
+    ecs_dbg_assert(size == v->elem_size, ECS_INVALID_PARAMETER, NULL);
+    void *array = flecs_da_malloc(da, size * v->size);
+    ecs_os_memcpy(array, v->array, size * v->count);
+    return (ecs_vec_t) {
+        .count = v->count,
+        .size = v->size,
+        .array = array
+#ifdef FLECS_DEBUG
+        , .elem_size = size
+#endif
+    };
+}

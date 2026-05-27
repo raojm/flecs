@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+typedef struct ecs_data_allocator_t ecs_data_allocator_t;
+
 /** A component column. */
 typedef struct ecs_vec_t {
     void *array;
@@ -168,19 +170,97 @@ void* ecs_vec_get(
     ECS_CAST(T*, ecs_vec_get(vec, ECS_SIZEOF(T), index))
 
 FLECS_API
-void* ecs_vec_first(
-    const ecs_vec_t *vec);
-
-#define ecs_vec_first_t(vec, T) \
-    ECS_CAST(T*, ecs_vec_first(vec))
-
-FLECS_API
 void* ecs_vec_last(
     const ecs_vec_t *vec,
     ecs_size_t size);
 
 #define ecs_vec_last_t(vec, T) \
     ECS_CAST(T*, ecs_vec_last(vec, ECS_SIZEOF(T)))
+
+FLECS_API
+void* ecs_vec_first(
+    const ecs_vec_t *vec);
+
+#define ecs_vec_first_t(vec, T) \
+    ECS_CAST(T*, ecs_vec_first(vec))
+
+/* Data allocator variants for component data separation */
+
+FLECS_API
+ecs_vec_t* ecs_vec_init_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_init_d_t(da, vec, T, elem_count) \
+    ecs_vec_init_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void ecs_vec_fini_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_fini_d_t(da, vec, T) \
+    ecs_vec_fini_d(da, vec, ECS_SIZEOF(T))
+
+FLECS_API
+void ecs_vec_set_size_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_set_size_d_t(da, vec, T, elem_count) \
+    ecs_vec_set_size_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void ecs_vec_set_count_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_set_count_d_t(da, vec, T, elem_count) \
+    ecs_vec_set_count_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void* ecs_vec_grow_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_grow_d_t(da, vec, T, elem_count) \
+    ecs_vec_grow_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void* ecs_vec_append_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_append_d_t(da, vec, T) \
+    ECS_CAST(T*, ecs_vec_append_d(da, vec, ECS_SIZEOF(T)))
+
+FLECS_API
+void ecs_vec_reclaim_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_reclaim_d_t(da, vec, T) \
+    ecs_vec_reclaim_d(da, vec, ECS_SIZEOF(T))
+
+FLECS_API
+ecs_vec_t ecs_vec_copy_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_copy_d_t(da, vec, T) \
+    ecs_vec_copy_d(da, vec, ECS_SIZEOF(T))
 
 #ifdef __cplusplus
 }
