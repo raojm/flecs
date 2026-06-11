@@ -3201,24 +3201,27 @@ void ecs_set_id_changed(
     ecs_check(ecs_is_valid(world, entity), ECS_INVALID_PARAMETER, NULL);
     ecs_check(ecs_id_is_valid(world, id), ECS_INVALID_PARAMETER, NULL);
 
-    ecs_stage_t *stage = flecs_stage_from_world(&world);
+    /* Always execute immediately — ecs_set_id_changed only toggles a bitset
+     * flag and does not mutate component data, trigger observers, or change
+     * table structure.  Deferring it causes a timing mismatch:
+     *   1. During ecs_progress (readonly mode, stage->defer > 0),
+     *      flecs_defer_changed enqueues EcsOpChanged.
+     *   2. on_sync_changed resets bitset (immediate).
+     *   3. readonly_end flushes deferred EcsOpChanged → sets bitset again.
+     *   4. Next frame sees stale changed flag → infinite loop.
+     * Making this immediate ensures reset and set happen in the correct order.
+     */
+    ecs_world_t *world_ref = world;
+    (void)world_ref;
+    ecs_stage_t *stage = flecs_stage_from_world(&world_ref);
 
-    if (flecs_defer_changed(
-        world, stage, entity, id, changed))
-    {
-        return;
-    } else {
-        /* Operations invoked by changed/notchanged should not be deferred */
-        stage->defer --;
-    }
-
-    ecs_record_t *r = flecs_entities_ensure(world, entity);
+    ecs_record_t *r = flecs_entities_ensure(world_ref, entity);
     ecs_entity_t changed_bs_id = id | ECS_TOGGLE_CHANGED_BITSET;
     
     ecs_table_t *table = r->table;
     int32_t index = -1;
     if (table) {
-        index = ecs_search(world, table, changed_bs_id, 0);
+        index = ecs_search(world_ref, table, changed_bs_id, 0);
     }
 
     //如果没有添加ECS_TOGGLE_CHANGED_BITSET标识的组件进entity, 默认不记录changed状态
