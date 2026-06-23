@@ -2939,6 +2939,13 @@ void flecs_modified_id_if(
         return;
     }
 
+    /* Set changed bitset so ecs_is_id_changed returns true for this component.
+     * This is necessary because when ecs_set_id is called in deferred mode and
+     * the component already exists, flecs_defer_set copies data immediately but
+     * enqueues EcsOpAddModified, which calls flecs_modified_id_if on flush.
+     * Without this, the changed bitset is never set for modified components. */
+    ecs_set_id_changed(world, entity, id, true);
+
     ecs_type_t ids = { .array = &id, .count = 1 };
     flecs_notify_on_set(world, table, ECS_RECORD_TO_ROW(r->row), 1, &ids, true);
 
