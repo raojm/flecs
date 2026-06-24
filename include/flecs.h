@@ -2045,6 +2045,25 @@ ecs_world_t* ecs_init_w_args(
     int argc,
     char *argv[]);
 
+/** Set a custom data allocator for component data.
+ * When set, component column memory (Position[], Velocity[], etc.) and the
+ * entity id array are allocated through this allocator instead of the default
+ * world allocator. This enables mapping component data to a separate memory
+ * region (e.g., a shared memory pool) while keeping Flecs metadata in the
+ * default allocator.
+ *
+ * All function pointers must be non-NULL. contains_fn is used to determine
+ * whether an existing vector array lives in the data pool, which allows the
+ * allocator to be set after ecs_init() has created builtin components.
+ * Must be called before application entities/components are created.
+ *
+ * @param world The world.
+ * @param data_allocator The data allocator to use for component columns. */
+FLECS_API
+void ecs_set_data_allocator(
+    ecs_world_t *world,
+    const ecs_data_allocator_t *data_allocator);
+
 /** Delete a world.
  * This operation deletes the world, and everything it contains.
  *

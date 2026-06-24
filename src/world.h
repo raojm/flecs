@@ -198,6 +198,7 @@ struct ecs_world_t {
     /* -- Allocators -- */
     ecs_world_allocators_t allocators; /* Static allocation sizes */
     ecs_allocator_t allocator;       /* Dynamic allocation sizes */
+    ecs_data_allocator_t data_allocator; /* Custom allocator for component columns */
 
     void *ctx;                       /* Application context */
     void *binding_ctx;               /* Binding-specific context */

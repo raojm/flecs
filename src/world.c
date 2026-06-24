@@ -702,6 +702,13 @@ void flecs_world_allocators_init(
 
     flecs_allocator_init(&world->allocator);
 
+    world->data_allocator.malloc_fn = NULL;
+    world->data_allocator.free_fn = NULL;
+    world->data_allocator.realloc_fn = NULL;
+    world->data_allocator.calloc_fn = NULL;
+    world->data_allocator.contains_fn = NULL;
+    world->data_allocator.ctx = NULL;
+
     flecs_ballocator_init_n(&a->graph_edge_lo, ecs_graph_edge_t, FLECS_HI_COMPONENT_ID);
     flecs_ballocator_init_t(&a->graph_edge, ecs_graph_edge_t);
     flecs_ballocator_init_t(&a->component_record, ecs_component_record_t);
@@ -1253,6 +1260,21 @@ ecs_entity_t flecs_get_oneof(
     } else {
         return 0;
     }
+}
+
+void ecs_set_data_allocator(
+    ecs_world_t *world,
+    const ecs_data_allocator_t *data_allocator)
+{
+    flecs_poly_assert(world, ecs_world_t);
+    ecs_assert(!(world->flags & EcsWorldReadonly), ECS_INVALID_OPERATION, NULL);
+    ecs_assert(data_allocator != NULL, ECS_INVALID_PARAMETER, NULL);
+    ecs_assert(data_allocator->malloc_fn != NULL, ECS_INVALID_PARAMETER, NULL);
+    ecs_assert(data_allocator->free_fn != NULL, ECS_INVALID_PARAMETER, NULL);
+    ecs_assert(data_allocator->realloc_fn != NULL, ECS_INVALID_PARAMETER, NULL);
+    ecs_assert(data_allocator->calloc_fn != NULL, ECS_INVALID_PARAMETER, NULL);
+    ecs_assert(data_allocator->contains_fn != NULL, ECS_INVALID_PARAMETER, NULL);
+    world->data_allocator = *data_allocator;
 }
 
 /* The destroyer of worlds */
