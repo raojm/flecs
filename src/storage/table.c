@@ -45,14 +45,22 @@
        (world)->data_allocator.contains_fn((world)->data_allocator.ctx, (vec)->array))))
 
 #define flecs_data_vec_init(world, vec, size, elem_count) \
-    flecs_has_data_allocator(world) \
-        ? ecs_vec_init_d(&world->data_allocator, vec, size, elem_count) \
-        : ecs_vec_init(&world->allocator, vec, size, elem_count)
+    do { \
+        if (flecs_has_data_allocator(world)) { \
+            ecs_vec_init_d(&world->data_allocator, vec, size, elem_count); \
+        } else { \
+            ecs_vec_init(&world->allocator, vec, size, elem_count); \
+        } \
+    } while (0)
 
 #define flecs_data_vec_init_t(world, vec, T, elem_count) \
-    flecs_has_data_allocator(world) \
-        ? ecs_vec_init_d_t(&world->data_allocator, vec, T, elem_count) \
-        : ecs_vec_init_t(&world->allocator, vec, T, elem_count)
+    do { \
+        if (flecs_has_data_allocator(world)) { \
+            ecs_vec_init_d_t(&world->data_allocator, vec, T, elem_count); \
+        } else { \
+            ecs_vec_init_t(&world->allocator, vec, T, elem_count); \
+        } \
+    } while (0)
 
 #define flecs_data_vec_fini(world, vec, size) \
     flecs_data_in_pool(world, vec) \
