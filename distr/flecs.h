@@ -670,6 +670,10 @@ extern "C" {
 #elif defined(__EMSCRIPTEN__)
 #define ECS_TARGET_EM
 #define ECS_TARGET_POSIX
+#elif defined(__wasm__)
+/* WASI (wasm32-wasip1): 无完整 POSIX，但应使用 fopen/snprintf/strncpy
+   等 POSIX 语义；不设 ECS_TARGET_EM，避免触发 emscripten.h / REST 依赖 */
+#define ECS_TARGET_POSIX
 #endif
 
 #if defined(__MINGW32__) || defined(__MINGW64__)
