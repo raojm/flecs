@@ -1354,6 +1354,48 @@ typedef struct ecs_table_record_t ecs_table_record_t;
 #ifndef FLECS_VEC_H
 #define FLECS_VEC_H
 
+/**
+ * @file private/data_allocator.h
+ * @brief Forward definition of the custom data allocator struct.
+ *
+ * This header exists so that flecs/datastructures/vec.h can declare the
+ * ecs_vec_*_d API without creating a circular include with
+ * flecs/datastructures/allocator.h.
+ */
+
+#ifndef FLECS_DATA_ALLOCATOR_H
+#define FLECS_DATA_ALLOCATOR_H
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** Custom data allocator for component column memory.
+ * When configured on a world, all component column allocations (Position[],
+ * Velocity[], etc.) and the entity id array are routed through this allocator
+ * instead of the default world allocator. This keeps Flecs metadata in the
+ * default allocator while allowing component data to live in a separate memory
+ * region (e.g., a shared memory pool that can be mapped read-only by clients).
+ *
+ * All callbacks must be provided. contains_fn is used internally to decide
+ * whether an existing vector array was allocated from the data pool.
+ */
+typedef struct ecs_data_allocator_t {
+    void* (*malloc_fn)(void *ctx, ecs_size_t size);
+    void (*free_fn)(void *ctx, void *ptr);
+    void* (*realloc_fn)(void *ctx, void *ptr, ecs_size_t size);
+    void* (*calloc_fn)(void *ctx, ecs_size_t size);
+    bool (*contains_fn)(void *ctx, const void *ptr); /**< Optional ownership test. */
+    void *ctx;
+} ecs_data_allocator_t;
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -1888,6 +1930,88 @@ void* ecs_vec_last(
  */
 #define ecs_vec_last_t(vec, T) \
     ECS_CAST(T*, ecs_vec_last(vec, ECS_SIZEOF(T)))
+
+/* Data allocator variants for component data separation.
+ * These functions behave like their ecs_vec_* counterparts, but route all
+ * memory operations through an ecs_data_allocator_t instead of the world's
+ * default ecs_allocator_t. Used to keep component column data in a separate
+ * memory region (e.g., a shared memory pool). */
+
+FLECS_API
+ecs_vec_t* ecs_vec_init_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_init_d_t(da, vec, T, elem_count) \
+    ecs_vec_init_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void ecs_vec_fini_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_fini_d_t(da, vec, T) \
+    ecs_vec_fini_d(da, vec, ECS_SIZEOF(T))
+
+FLECS_API
+void ecs_vec_set_size_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_set_size_d_t(da, vec, T, elem_count) \
+    ecs_vec_set_size_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void ecs_vec_set_count_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_set_count_d_t(da, vec, T, elem_count) \
+    ecs_vec_set_count_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void* ecs_vec_grow_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size,
+    int32_t elem_count);
+
+#define ecs_vec_grow_d_t(da, vec, T, elem_count) \
+    ecs_vec_grow_d(da, vec, ECS_SIZEOF(T), elem_count)
+
+FLECS_API
+void* ecs_vec_append_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_append_d_t(da, vec, T) \
+    ECS_CAST(T*, ecs_vec_append_d(da, vec, ECS_SIZEOF(T)))
+
+FLECS_API
+void ecs_vec_reclaim_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_reclaim_d_t(da, vec, T) \
+    ecs_vec_reclaim_d(da, vec, ECS_SIZEOF(T))
+
+FLECS_API
+ecs_vec_t ecs_vec_copy_d(
+    ecs_data_allocator_t *da,
+    ecs_vec_t *vec,
+    ecs_size_t size);
+
+#define ecs_vec_copy_d_t(da, vec, T) \
+    ecs_vec_copy_d(da, vec, ECS_SIZEOF(T))
 
 #ifdef __cplusplus
 }
@@ -7039,6 +7163,25 @@ FLECS_API
 ecs_world_t* ecs_init_w_args(
     int argc,
     char *argv[]);
+
+/** Set a custom data allocator for component data.
+ * When set, component column memory (Position[], Velocity[], etc.) and the
+ * entity id array are allocated through this allocator instead of the default
+ * world allocator. This enables mapping component data to a separate memory
+ * region (e.g., a shared memory pool) while keeping Flecs metadata in the
+ * default allocator.
+ *
+ * All function pointers must be non-NULL. contains_fn is used to determine
+ * whether an existing vector array lives in the data pool, which allows the
+ * allocator to be set after ecs_init() has created builtin components.
+ * Must be called before application entities/components are created.
+ *
+ * @param world The world.
+ * @param data_allocator The data allocator to use for component columns. */
+FLECS_API
+void ecs_set_data_allocator(
+    ecs_world_t *world,
+    const ecs_data_allocator_t *data_allocator);
 
 /** Delete a world.
  * This operation deletes the world, and everything it contains.
